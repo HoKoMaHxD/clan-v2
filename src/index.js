@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { setTimeout as taskDelay } from 'node:timers/promises';
 import { Client, GatewayIntentBits, Events } from 'discord.js';
 import { readConfig } from './config.js';
+import { loginReady } from './auth.js';
 import { MongoStore } from './store.js';
 import { QuestService } from './service.js';
 import { VoiceTracker } from './voice.js';
@@ -11,6 +12,7 @@ import { PanelManager, createSetupMessageHandler } from './panel.js';
 let config;
 try { config = readConfig(); }
 catch (error) { console.error(error.message); process.exit(1); }
+for (const warning of config.authWarnings) console.warn(`[auth:config] ${warning}`);
 
 function logError(scope, error) {
   let message = String(error?.message || 'Unknown error');
@@ -168,7 +170,7 @@ source.on('channelDelete', channel => {
 
 for (const client of new Set([bot, source])) {
   client.on('error', error => logError(client === bot ? 'bot' : 'observer', error));
-  client.on('shardError', error => { tracker.drop(); logError('gateway', error); });
+  client.on('shardError', error => { tracker.drop(); logError(client === bot ? 'gateway:bot' : 'gateway:observer', error); });
   for (const event of ['shardDisconnect', 'shardReconnecting']) client.on(event, () => {
     tracker.drop();
     if (client === bot) membershipReady = false;
@@ -182,16 +184,6 @@ for (const client of new Set([bot, source])) {
     })());
   });
   client.on('invalidated', () => { void shutdown(1, false); });
-}
-
-function loginReady(client, token, readyEvent) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { cleanup(); reject(new Error('انتهت مهلة الاتصال بديسكورد.')); }, 90000);
-    const ready = () => { cleanup(); resolve(); };
-    const cleanup = () => { clearTimeout(timer); client.off(readyEvent, ready); };
-    client.once(readyEvent, ready);
-    client.login(token).catch(error => { cleanup(); reject(error); });
-  });
 }
 
 async function shutdown(code = 0, flush = true) {
@@ -246,8 +238,8 @@ try {
     })());
   }, 10000);
   settings = await store.settings();
-  await loginReady(bot, config.botToken, Events.ClientReady);
-  if (source !== bot) await loginReady(source, config.userToken, 'ready');
+  await loginReady(bot, config.botToken, Events.ClientReady, 'bot');
+  if (source !== bot) await loginReady(source, config.userToken, 'ready', 'observer');
   if (!source.guilds.cache.has(config.arenaGuildId)) throw new Error('حساب القارئ غير موجود في سيرفر أرينا المحدد. لا يمكن متابعة سيرفر لا يملك الحساب وصولًا إليه.');
   await loadMembers();
   await refreshSettings();
@@ -287,4 +279,4 @@ try {
     http.listen(config.port, '0.0.0.0');
   }
   console.log(`جاهز: ${members.size} عضو مؤهل. الأوامر مسجلة في سيرفر الكلان. راجع /حالة_البوت ثم اختبر /مهامي.`);
-} catch (error) { logError('startup', error); await shutdown(1, false); }
+} catch (error) { logError(error.scope || 'startup', error); await shutdown(1, false); }

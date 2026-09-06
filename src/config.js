@@ -1,3 +1,5 @@
+import { readAuthConfig } from './auth.js';
+
 export const isId = value => typeof value === 'string' && /^\d{17,20}$/.test(value);
 
 export function readConfig(env = process.env) {
@@ -21,17 +23,13 @@ export function readConfig(env = process.env) {
     if (!['true', 'false'].includes(value)) throw new Error(`${name}: استخدم true أو false.`);
     return value === 'true';
   };
-  const mode = env.OBSERVER_MODE?.trim() || 'selfbot';
-  if (!['selfbot', 'official'].includes(mode)) throw new Error('OBSERVER_MODE: official أو selfbot فقط.');
-  if (mode === 'selfbot' && !boolean('ACKNOWLEDGE_SELFBOT_RISK', false)) {
-    throw new Error('الـself-bot مخالف لشروط Discord وقد يغلق الحساب. راجع README ثم ACKNOWLEDGE_SELFBOT_RISK.');
-  }
+  const auth = readAuthConfig(env);
   const mongoUri = required('MONGODB_URI');
   if (!/^mongodb(?:\+srv)?:\/\//.test(mongoUri)) throw new Error('MONGODB_URI يجب أن يبدأ بـ mongodb:// أو mongodb+srv://');
   const memberRole = env.CLAN_MEMBER_ROLE_ID?.trim() || null;
   if (memberRole && !isId(memberRole)) throw new Error('CLAN_MEMBER_ROLE_ID غير صالح.');
   return {
-    mode, botToken: required('DISCORD_BOT_TOKEN'), userToken: mode === 'selfbot' ? required('ARENA_USER_TOKEN') : null,
+    ...auth,
     mongoUri, dbName: env.MONGODB_DB?.trim() || 'clan_quests',
     clanGuildId: id('CLAN_GUILD_ID'), arenaGuildId: id('ARENA_GUILD_ID'),
     generalChannelId: id('GENERAL_CHANNEL_ID'), voiceChannelId: id('CLAN_VOICE_CHANNEL_ID'), memberRole,

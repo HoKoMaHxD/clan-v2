@@ -1,6 +1,6 @@
 {
   "name": "clan-quests-bot",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "Arabic clan daily quests, attendance and leaderboards",
   "type": "module",
@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node --env-file-if-exists=.env src/index.js",
+    "diagnose": "node --env-file-if-exists=.env scripts/diagnose-auth.js",
     "test": "node --test test/*.test.js",
     "test:db": "node --env-file-if-exists=.env --test test/database.integration.js",
     "check": "node scripts/check.js"
